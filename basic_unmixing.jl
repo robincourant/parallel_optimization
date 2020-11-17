@@ -12,11 +12,11 @@ function initialize_abundance(n, p, n_constraints)
     """
     A = ones(p, n)
     uniform_distribution = Uniform(0, 1)
-    for j = 1:p
-        A[j, :] = rand(uniform_distribution, n)
+    for j = 1:n
+        A[:, j] = rand(uniform_distribution, p)
         if n_constraints == 2
-            sum_row = sum(A[j, :])
-            A[j, :] = map(x -> x / sum_row, A[j, :])
+            sum_row = sum(A[:, j])
+            A[:, j] = map(x -> x / sum_row, A[:, j])
         end
     end
     return A
