@@ -35,12 +35,12 @@ function abundance_estimation(X, S, nb_constraints)
 
     loss = [get_distance(X, S * main_A)]
     main_iter = 0
-    projection_iter = 0
     while main_iter < max_iter
         main_∇f = S' * (S * main_A - X)
         main_A -= main_stepsize * main_∇f
 
         projection_A = initialize_abundance(n, p, nb_constraints)
+        projection_iter = 0
         while projection_iter < max_iter
             projection_∇f = projection_A - main_A
             projection_A -= projection_stepsize * projection_∇f
