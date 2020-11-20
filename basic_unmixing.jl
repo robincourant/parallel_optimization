@@ -11,8 +11,8 @@ function get_projection(x0, a, b)
     Compute the value of the projection of `x0` with equality constraints.
     ie: min ||x0 - p|| with p'a = b.
     """
-    γ = (x0'*a-b)[1] / norm(c)^2
-    p = x0 - γ * c
+    γ = (x0'*a-b)[1] / norm(a)^2
+    p = x0 - γ * a
     return p
 end
 
