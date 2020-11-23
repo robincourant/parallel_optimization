@@ -1,4 +1,6 @@
 using LinearAlgebra
+using Base.Iterators
+using Distributions
 
 function get_distance(a, b)
     """Compute the norm L2 of a and b."""
@@ -83,16 +85,18 @@ function projected_gradient(X, S, max_iter = 500, min_precision = 1e-8)
     :param S: source matrix of shape (255, 4).
     :param max_iter: maximum number of iterations.
     :param min_precision: minimum precision value to stop the algorithm.
-    :return: the estimated abundance vector.
+    :return: the estimated image and the estimated abundance vector.
     """
-    l, n = size(X)
-    A = zeros(4, 0)
+    n1, n2, l = size(X)
+    new_X = zeros(n1, n2, l)
+    A = zeros(n1, n2, 4)
     # Iterate over each pixel vector
-    for j = 1:n
-        x = reshape(X[:, j], l, 1)
+    for (i, j) in product(1:n1, 1:n2)
+        x = X[i, j, :]
         # Estimate its abundance vector
         a, _ = projected_gradient_vector(x, S, max_iter, min_precision)
-        A = [A a]
+        new_X[i, j, :] = S * a
+        A[i, j, :] = a
     end
-    return A
+    return new_X, A
 end

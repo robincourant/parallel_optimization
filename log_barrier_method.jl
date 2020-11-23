@@ -1,3 +1,7 @@
+using LinearAlgebra
+using Base.Iterators
+using Distributions
+
 function initialize_abundance(p, equality, positivity)
     """Initialize abundance vector of size `p` with a uniform distribution.
 
@@ -23,7 +27,7 @@ function cost(X, S, A)
     :return cost: distance between X and S*A
     """
     cost = (1 / 2) * (norm(X - S * A))^2
-    return(cost)
+    return (cost)
 end
 
 function ∇cost(x, S, Abundance)
@@ -56,7 +60,7 @@ function ∇ϕ(a)
     """
     P = 4
     ∇ϕ = -1 * [(1 / a[i]) for i = 1:P]
-    
+
     return ∇ϕ
 end
 
@@ -68,7 +72,7 @@ function ∇2ϕ(a)
     P = 4
     ∇2ϕ = zeros(P, P)
     for i = 1:P
-        ∇2ϕ[i,i] = 1 / a[i]^2
+        ∇2ϕ[i, i] = 1 / a[i]^2
     end
     return ∇2ϕ
 end
@@ -86,23 +90,25 @@ function backtracking_log_barrier(x, S, pt, f, ∇f, ϕ, ∇ϕ, d, t)
     """
     P = 4
     # backtracking parameters
-    α, β = 0.25, 0.1 
-    n = 0 
+    α, β = 0.25, 0.1
+    n = 0
     ρ = 0.5
-    
+
     # ϕdefined is used to avoid definition issue of the ϕfunction at beginning of while loop
     ϕdefined = true
     for i = 1:P
-        if (pt + ρ * d)[i] < 0
+        if (pt+ρ*d)[i] < 0
             ϕdefined = false
         end
     end
-    
-    while ϕdefined == false || (t * f(x, S, pt + ρ * d) + ϕ(pt + ρ * d)) > t * f(x, S, pt) + ϕ(pt) + sum(ρ * α * (t * ∇f(x, S, pt) + ∇ϕ(pt))' * d)
+
+    while ϕdefined == false ||
+        (t * f(x, S, pt + ρ * d) + ϕ(pt + ρ * d)) >
+        t * f(x, S, pt) + ϕ(pt) + sum(ρ * α * (t * ∇f(x, S, pt) + ∇ϕ(pt))' * d)
         if ϕdefined == false
             ϕdefined = true
             for i = 1:P
-                if (pt + ρ * d)[i] < 0
+                if (pt+ρ*d)[i] < 0
                     ϕdefined = false
                 end
             end
@@ -113,9 +119,9 @@ function backtracking_log_barrier(x, S, pt, f, ∇f, ϕ, ∇ϕ, d, t)
     return ρ, n
 end
 
-function log_barrier_vector(x, S, max_iter=100)
+function log_barrier_vector(x, S, max_iter = 100)
     """log barrier method to minimize ||x-S*a||^2 where 'x' and 'a' vectors
-    
+
     :param x: pixel vector, shape(255,1)
     :param S: source matrix, shape (255,P)
     :return abundance: estimated abundance vector
@@ -125,19 +131,19 @@ function log_barrier_vector(x, S, max_iter=100)
     # Initialization
     abundance = initialize_abundance(4, true, true)
     cost_evol = [cost(x, S, abundance)]
-    
+
     # log_barrier parameters (to optimize?)
     t = 1
     α = 1.5
     μ = 15
-    
-    # Equality constraint
-    constraint = [1 1 1 1] 
-    
 
-    prec        = 1.e-20
-    iter = 0  
-    
+    # Equality constraint
+    constraint = [1 1 1 1]
+
+
+    prec = 1.e-20
+    iter = 0
+
     nb_loops_IP = 0  # number of backtracking loops
 
     # initialize d otherwise d not define out of for loop (we love julia)
@@ -145,30 +151,35 @@ function log_barrier_vector(x, S, max_iter=100)
     while true && iter < max_iter
         iter += 1
         for k = 1:μ
-            
+
             # Computing the search direction
-            mat_to_inv = vcat(hcat(t * ∇2cost(x, S, abundance) + ∇2ϕ(abundance), constraint'), hcat(constraint, 0))
-            d = (-1 * inv(mat_to_inv) * vcat(t * ∇cost(x, S, abundance) + ∇ϕ(abundance), 0))[1:P]
+            mat_to_inv = vcat(
+                hcat(t * ∇2cost(x, S, abundance) + ∇2ϕ(abundance), constraint'),
+                hcat(constraint, 0),
+            )
+            d =
+                (-1*inv(mat_to_inv)*vcat(t * ∇cost(x, S, abundance) + ∇ϕ(abundance), 0))[1:P]
             # Computing optimal stepsize
-            step_size, n_loops = backtracking_log_barrier(x, S, abundance, cost, ∇cost, ϕ, ∇ϕ, d, t)
+            step_size, n_loops =
+                backtracking_log_barrier(x, S, abundance, cost, ∇cost, ϕ, ∇ϕ, d, t)
             abundance += step_size * d
             nb_loops_IP += n_loops
             append!(cost_evol, cost(x, S, abundance))
-            
+
         end
-        
+
         # Updating t
         t *= α
 
         # Stop condition
-        if sum(-1 * (t * ∇cost(x, S, abundance) + ∇ϕ(abundance))' * d / 2) < prec 
+        if sum(-1 * (t * ∇cost(x, S, abundance) + ∇ϕ(abundance))' * d / 2) < prec
             break
         end
     end
     return abundance, cost_evol
 end
 
-function log_barrier(X, S, max_iter=100)
+function log_barrier(X, S, max_iter = 100)
     """Estimate the abundance matrix for each pixel of the image X, by estimating
     the abundance vector of each pixel.
     Using the log_barrier method
@@ -177,16 +188,18 @@ function log_barrier(X, S, max_iter=100)
     :param S: source matrix of shape (255, 4).
     :param max_iter: maximum number of iterations.
     :param min_precision: minimum precision value to stop the algorithm.
-    :return: the estimated abundance vector.
+    :return: the estimated image and the estimated abundance vector.
     """
-    l, n = size(X)
-    A = zeros(4, 0)
+    n1, n2, l = size(X)
+    new_X = zeros(n1, n2, l)
+    A = zeros(n1, n2, 4)
     # Iterate over each pixel vector
-    for j = 1:n
-        x = reshape(X[:, j], l, 1)
+    for (i, j) in product(1:n1, 1:n2)
+        x = X[i, j, :]
         # Estimate its abundance vector
-        a, cost_evol = log_barrier_vector(x, S, 100)
-        A = [A a]
+        a, _ = log_barrier_vector(x, S, 100)
+        new_X[i, j, :] = S * a
+        A[i, j, :] = a
     end
-    return A
+    return new_X, A
 end

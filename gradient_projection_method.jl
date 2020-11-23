@@ -1,4 +1,6 @@
 using LinearAlgebra
+using Base.Iterators
+using Distributions
 
 function initialize_abundance(p, equality, positivity)
     """Initialize abundance vector of size `p` with a uniform distribution.
@@ -14,7 +16,7 @@ function initialize_abundance(p, equality, positivity)
         A /= sum(A)
     end
     return A
-end 
+end
 
 function cost(X, S, A)
     """Compute cost.
@@ -36,7 +38,7 @@ function is_feasible(abundance)
     """Indicates if 'abundance' verifies constraints
 
     :param abundance: vector of size(P,1)
-    :return feasible: bool 
+    :return feasible: bool
     """
     P = 4
     feasible = false
@@ -62,7 +64,7 @@ function backtracking(x, S, p, f, ∇f, d, t)
     :return t: optimal_stepsize
     :return n: number of loops
     """
-    n_loops = 0 
+    n_loops = 0
     # backtracking parameters
     alpha = 0.25
     beta = 0.7
@@ -82,21 +84,21 @@ function projected_gradient_vector_antoine(x, S, max_iter=1000)
     :param S: source matrix of shape (255, 4).
     :param max_iter: maximum number of iterations.
     :return abundance: estimated abundance vector.
-    :return cost_evol: evolution of cost 
+    :return cost_evol: evolution of cost
     """
     # 1) Initializing abundance vector
     P = 4
     abundance = initialize_abundance(4, true, true)
     cost_evol = [cost(x, S, abundance)]
-    
-    
+
+
     KKT = false
     iter = 0
     while KKT == false && iter < max_iter
-        
+
         # 2) Find active constraints and define the contraint matrix
         constraint_mat = [1 for i = 1:P ]' # sum to one constraint always active
-        
+
         for i = 1:P
             if abundance[i] <= 0
                 new_line = [ 0 for k = 1:P]'
@@ -105,46 +107,46 @@ function projected_gradient_vector_antoine(x, S, max_iter=1000)
             end
         end
         constraint_mat = constraint_mat'
-        
+
         # 3) calculate projection matrix and search direction
 
         projection_mat = Matrix(I, P, P) - constraint_mat * inv(constraint_mat' * constraint_mat) * constraint_mat'
         gradient = gradient_cost(x, S, abundance)
         d = -projection_mat * gradient
-        
+
         # 4) if d!=0
         if d != [0;0;0;0]
             α = 0
             dα = (1 / opnorm(transpose(S) * S))
             n_iter_1 = 0
-            
+
             # Looking for αmax such that (abundance+αmax*d) is feasible
             while is_feasible(abundance + (α + dα) * d) == true && n_iter_1 < max_iter
                 α += dα
-                n_iter_1 += 1    
+                n_iter_1 += 1
             end
-            
+
             # Looking for the optimal stepsize
             α, n_loops = backtracking(x, S, abundance, cost, gradient_cost, d, α)
-            abundance = abundance + α * d 
+            abundance = abundance + α * d
             append!(cost_evol, cost(x, S, abundance))
             # Return to step 2
-            
+
         # 5) if d=0
         else
             # Set Lagrangian vector
             λ = -1 * inv(constraint_mat' * constraint_mat) * constraint_mat' * gradient
-            
+
             # If λ[i] for an inequality constraints <0 : KKT are not verified.
             # It nearly never happen so we don't solve the problem when it occurs
             for i = 1:length(λ)
                 if i >= 2 && λ[i] < 0
                     print("wrong lambda")
-                end      
+                end
             end
-            KKT = true  
+            KKT = true
         end
-        iter += 1 
+        iter += 1
 
     end
     return abundance, cost_evol
@@ -158,17 +160,19 @@ function projected_gradient_antoine(X, S, max_iter=100)
     :param S: source matrix of shape (255, 4).
     :param max_iter: maximum number of iterations.
     :param min_precision: minimum precision value to stop the algorithm.
-    :return: the estimated abundance vector.
+    :return: the estimated image and the estimated abundance vector.
     """
-    l, n = size(X)
-    A = zeros(4, 0)
+    n1, n2, l = size(X)
+    new_X = zeros(n1, n2, l)
+    A = zeros(n1, n2, 4)
     # Iterate over each pixel vector
-    for j = 1:n
-        x = reshape(X[:, j], l, 1)
+    for (i, j) in product(1:n1, 1:n2)
+        x = X[i, j, :]
         # Estimate its abundance vector
-        a, cost_evol = projected_gradient_vector_antoine(x, S)
-        A = [A a]
+        a, _ = projected_gradient_vector_antoine(x, S)
+        new_X[i, j, :] = S * a
+        A[i, j, :] = a
     end
-    return A
+    return new_X, A
 end
 
