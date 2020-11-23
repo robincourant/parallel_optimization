@@ -42,7 +42,7 @@ end
 
 function get_function(x, S, a)
     """Compute the function to minimize: ||X - SA||."""
-    return get_distance(x, S * a)
+    return 0.5 * get_distance(x, S * a)
 end
 
 
