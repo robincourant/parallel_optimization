@@ -42,15 +42,15 @@ function backtracking_log_barrier(x, S, pt, f, ∇f, ϕ, ∇ϕ, d, t)
     """
     P = 4
     # backtracking parameters
-    α, β = 0.25, 0.1
+    α, β = 0.25, 0.7
     n = 0
-    ρ = 0.5
+    ρ = 1
 
     # `ϕdefined` is used to avoid definition issue of the `ϕfunction`
     # at beginning of while loop
     ϕdefined = true
     for i = 1:P
-        if (pt+ρ*d)[i] < 0
+        if (pt + ρ * d)[i] < 0
             ϕdefined = false
         end
     end
@@ -61,7 +61,7 @@ function backtracking_log_barrier(x, S, pt, f, ∇f, ϕ, ∇ϕ, d, t)
         if ϕdefined == false
             ϕdefined = true
             for i = 1:P
-                if (pt+ρ*d)[i] < 0
+                if (pt + ρ * d)[i] < 0
                     ϕdefined = false
                 end
             end
@@ -72,7 +72,7 @@ function backtracking_log_barrier(x, S, pt, f, ∇f, ϕ, ∇ϕ, d, t)
     return ρ, n
 end
 
-function log_barrier_vector(x, S, max_iter = 100, min_precision = 1e-8)
+function log_barrier_vector(x, S, max_iter=100, min_precision=1e-8)
     """Log-barrier method to minimize `||x - S * a||^2` where 'x' and 'a' are vectors.
 
     :param x: pixel vector, shape(255,1).
@@ -99,7 +99,7 @@ function log_barrier_vector(x, S, max_iter = 100, min_precision = 1e-8)
     # Number of backtracking loops
     nb_loops_IP = 0
 
-    # Initialize d otherwise d not define out of for loop (we love julia)
+    # Initialize d otherwise d not define out of for loop 
     d = 0
     while true && iter < max_iter
         iter += 1
@@ -110,7 +110,7 @@ function log_barrier_vector(x, S, max_iter = 100, min_precision = 1e-8)
                 hcat(t * get_hessian(x, S, abundance) + ∇2ϕ(abundance), constraint'),
                 hcat(constraint, 0),
             )
-            d = (-1*inv(mat_to_inv)*vcat(
+            d = (-1 * inv(mat_to_inv) * vcat(
                 t * get_gradient(x, S, abundance) + ∇ϕ(abundance),
                 0,
             ))[1:P]
