@@ -1,32 +1,26 @@
 using Distributions
 using LinearAlgebra
 
-function initialize_abundance(p, equality, positivity)
-    """Initialize abundance vector of size `p` with a uniform distribution.
-
-    :param equality: add the equality constraint, ie: sum of the component equals to 1.
-    TODO :param positive: add the posity constraint, ie: every component is positive.
-    :return: the initialized abundance vector with wanted constraint.
+function get_feasible_point()
+    """
+    Initialize a random vector with respect to the equality
+    and positivity constraints.
     """
     uniform_distribution = Uniform(0, 1)
-    A = rand(uniform_distribution, p, 1)
-
-    if equality
-        A /= sum(A)
-    end
+    A = rand(uniform_distribution, 4, 1)
+    A /= sum(A)
     return A
 end
 
 
-function is_feasible(abundance)
-    """Indicates if 'abundance' verifies constraints."""
-    P = 4
+function is_feasible(a)
+    """Check if a point `a` is feasible (respects equality and positivity constraints)."""
     feasible = false
-    if (sum(abundance) - 1) <= 1e-3
+    if (sum(a) - 1) <= 1e-3
         feasible = true
     end
-    for i = 1:P
-        if abundance[i] < 0
+    for i = 1:4
+        if a[i] < 0
             feasible = false
         end
     end
@@ -34,15 +28,9 @@ function is_feasible(abundance)
 end
 
 
-function get_distance(a, b)
-    """Compute the norm L2 of a and b."""
-    return norm(a - b)^2
-end
-
-
 function get_function(x, S, a)
     """Compute the function to minimize: ||X - SA||."""
-    return 0.5 * get_distance(x, S * a)
+    return 0.5 * norm(x - S * a)^2
 end
 
 
