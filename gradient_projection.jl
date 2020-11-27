@@ -26,16 +26,16 @@ function projected_gradient_1c_vector(x, S, max_iter = 500, min_precision = 1e-8
     :return: the estimated abundance vector.
     """
     # Initialize y and x with constrained random sample
-    a = initialize_abundance(4, true, false)
-    p = initialize_abundance(4, true, false)
+    a = get_feasible_point()
+    p = get_feasible_point()
     # Initialize the stepsize with twice the reciprocal of the smallest
     # Lipschitz constant of the gradient
     t = 1 / opnorm(S' * S)
     ∇f(y) = S' * (S * y - x)
 
-    n_iter = 0
-    round_loss = get_function(x, S, a)
-    loss = [round_loss]
+    n_iter = 1
+    loss = zeros(max_iter)
+    loss[1] = get_function(x, S, a)
     while n_iter < max_iter
         # Update the abundance vector
         a = p - t * ∇f(p)
@@ -44,7 +44,7 @@ function projected_gradient_1c_vector(x, S, max_iter = 500, min_precision = 1e-8
 
         n_iter += 1
         round_loss = get_function(x, S, a)
-        loss = append!(loss, [round_loss])
+        loss[n_iter] = round_loss
         if round_loss < min_precision
             break
         end
@@ -65,7 +65,7 @@ function basic_backtracking(x, S, p, f, ∇f, d, t)
     :return: optimal_stepsize and the number of loops.
     """
     n_loops = 0
-    # backtracking parameters
+    # Backtracking parameters
     alpha = 0.25
     beta = 0.7
 
@@ -88,20 +88,19 @@ function projected_gradient_2c_vector(x, S, max_iter = 500, min_precision = 1e-8
     :return: estimated abundance vector and the evolution of cost.
     """
     # Initializing abundance vector
-    P = 4
-    abundance = initialize_abundance(4, true, true)
-    round_loss = get_function(x, S, abundance)
-    loss = [round_loss]
+    a = get_feasible_point()
+    loss = zeros(max_iter)
+    loss[1] = get_function(x, S, a)
 
     KKT = false
-    iter = 0
-    while KKT == false && iter < max_iter
+    n_iter = 1
+    while KKT == false && n_iter < max_iter
         # Find active constraints and define the contraint matrix
-        constraint_mat = [1 for i = 1:P]' # sum to one constraint always active
+        constraint_mat = [1 for i = 1:4]' # sum to one constraint always active
 
-        for i = 1:P
-            if abundance[i] <= 0
-                new_line = [0 for k = 1:P]'
+        for i = 1:4
+            if a[i] <= 0
+                new_line = [0 for k = 1:4]'
                 new_line[i] = -1
                 constraint_mat = vcat(constraint_mat, new_line)
             end
@@ -110,31 +109,28 @@ function projected_gradient_2c_vector(x, S, max_iter = 500, min_precision = 1e-8
 
         # Calculate projection matrix and search direction
         projection_mat =
-            Matrix(I, P, P) -
+            Matrix(I, 4, 4) -
             constraint_mat * inv(constraint_mat' * constraint_mat) * constraint_mat'
-        gradient = get_gradient(x, S, abundance)
+        gradient = get_gradient(x, S, a)
         d = -projection_mat * gradient
 
         # If d!=0
         if d != [0; 0; 0; 0]
             α = 0
             dα = (1 / opnorm(transpose(S) * S))
-            n_iter_1 = 0
+            k_iter = 0
 
-            # Looking for αmax such that (abundance+αmax*d) is feasible
-            while is_feasible(abundance + (α + dα) * d) == true && n_iter_1 < max_iter
+            # Looking for αmax such that (a+αmax*d) is feasible
+            while is_feasible(a + (α + dα) * d) == true && k_iter < max_iter
                 α += dα
-                n_iter_1 += 1
+                k_iter += 1
             end
 
             # Looking for the optimal stepsize
-            α, n_loops =
-                basic_backtracking(x, S, abundance, get_function, get_gradient, d, α)
-            abundance = abundance + α * d
-            round_loss = get_function(x, S, abundance)
-            loss = append!(loss, [round_loss])
-            round_loss = get_function(x, S, abundance)
-            loss = append!(loss, [round_loss])
+            α, n_loops = basic_backtracking(x, S, a, get_function, get_gradient, d, α)
+            a = a + α * d
+
+            loss[n_iter+1] = get_function(x, S, a)
             # Return to step 2
 
             # If d=0
@@ -149,10 +145,10 @@ function projected_gradient_2c_vector(x, S, max_iter = 500, min_precision = 1e-8
             end
             KKT = true
         end
-        iter += 1
+        n_iter += 1
 
     end
-    return abundance, loss
+    return a, loss
 end
 
 
