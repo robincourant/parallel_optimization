@@ -46,7 +46,7 @@ function backtracking_log_barrier(x, S, pt, f, ∇f, ϕ, ∇ϕ, d, t)
     # at beginning of while loop
     ϕ_defined = true
     for i = 1:4
-        if (pt+ρ*d)[i] < 0
+        if (pt + ρ * d)[i] < 0
             ϕ_defined = false
         end
     end
@@ -57,7 +57,7 @@ function backtracking_log_barrier(x, S, pt, f, ∇f, ϕ, ∇ϕ, d, t)
         if ϕ_defined == false
             ϕ_defined = true
             for i = 1:4
-                if (pt+ρ*d)[i] < 0
+                if (pt + ρ * d)[i] < 0
                     ϕ_defined = false
                 end
             end
@@ -68,7 +68,7 @@ function backtracking_log_barrier(x, S, pt, f, ∇f, ϕ, ∇ϕ, d, t)
     return ρ, n
 end
 
-function log_barrier_vector(x, S, max_iter = 100, min_precision = 1e-8)
+function log_barrier_vector(x, S, max_iter=100, min_precision=1e-8)
     """Log-barrier method to minimize `||x - S * a||^2` where 'x' and 'a' are vectors.
 
     :param x: pixel vector, shape(255,1).
@@ -103,7 +103,7 @@ function log_barrier_vector(x, S, max_iter = 100, min_precision = 1e-8)
                 hcat(t * get_hessian(x, S, a) + ∇2ϕ(a), constraint'),
                 hcat(constraint, 0),
             )
-            d = (-1*inv(mat_to_inv)*vcat(t * get_gradient(x, S, a) + ∇ϕ(a), 0))[1:4]
+            d = (-1 * inv(mat_to_inv) * vcat(t * get_gradient(x, S, a) + ∇ϕ(a), 0))[1:4]
             # Computing optimal stepsize
             step_size, n_loops =
                 backtracking_log_barrier(x, S, a, get_function, get_gradient, ϕ, ∇ϕ, d, t)
