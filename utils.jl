@@ -6,10 +6,23 @@ function get_feasible_point()
     Initialize a random vector with respect to the equality
     and positivity constraints.
     """
-    uniform_distribution = Uniform(0, 1)
+    uniform_distribution = Uniform(4, 5)
     A = rand(uniform_distribution, 4, 1)
     A /= sum(A)
     return A
+end
+
+function get_feasible_point_matrix(p, n)
+    """
+    Initialize a random vector with respect to the equality
+    and positivity constraints.
+    """
+    uniform_distribution = Uniform(0, 1)
+    X = rand(uniform_distribution, p, n)
+    for i = 1:n
+        X[:, i] /= sum(X[:, i])
+    end
+    return X
 end
 
 
@@ -43,4 +56,20 @@ end
 function get_hessian(x, S, a)
     """Compute the hessian of the function to minimize: ||X - SA||."""
     return S' * S
+end
+
+
+function get_gradient_vector(X, S, ZU)
+    p = size(S)[2]
+    n = size(X)[2]
+    ∇ = -S' * (X - S * ZU)
+
+    return reshape(∇, p * n)
+end
+
+
+function get_hessian_vector(X, S, U)
+    n = size(X)[2]
+    H = kron(Matrix(I, n, n), S)
+    return H' * H
 end
