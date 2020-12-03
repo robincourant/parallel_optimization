@@ -59,17 +59,17 @@ function get_hessian(x, S, a)
 end
 
 
-function get_gradient_vector(X, S, ZU)
+function get_gradient_vector(X, S, A0, U, Z)
     p = size(S)[2]
     n = size(X)[2]
-    ∇ = -S' * (X - S * ZU)
+    ∇ = Z'S' * (S * (A0 + Z*U) - X)
 
-    return reshape(∇, p * n)
+    return reshape(∇, (p - 1) * n)
 end
 
 
-function get_hessian_vector(X, S, U)
+function get_hessian_vector(X, S, Z)
     n = size(X)[2]
-    H = kron(Matrix(I, n, n), S)
+    H = kron(Matrix(I, n, n), S * Z)
     return H' * H
 end
