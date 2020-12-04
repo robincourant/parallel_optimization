@@ -41,9 +41,9 @@ function is_feasible(a)
 end
 
 
-function get_function(x, S, a)
+function get_function(X, S, A)
     """Compute the function to minimize: ||X - SA||."""
-    return 0.5 * norm(x - S * a)^2
+    return 0.5 * norm(X - S * A)^2
 end
 
 
@@ -62,7 +62,7 @@ end
 function get_gradient_vector(X, S, A0, U, Z)
     p = size(S)[2]
     n = size(X)[2]
-    ∇ = Z'S' * (S * (A0 + Z*U) - X)
+    ∇ = Z'S' * (S * (A0 + Z * U) - X)
 
     return reshape(∇, (p - 1) * n)
 end
