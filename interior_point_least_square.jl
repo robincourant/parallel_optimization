@@ -55,6 +55,46 @@ function update_pertubation(θ, δ, p, n)
     return μ, Mu
 end
 
+
+function Ψ(ϕu, A, λ, μ)
+    s1 = sum(log.(A))
+    s2 = sum(log.(λ .* A))
+
+    return ϕu - μ * (s1 + s2) + (λ' * A)
+end
+
+
+function ∇Ψ(∇ϕu, T, A, λ, μ)
+    n0 = size(T)[1]
+
+    ∇Ψ_λ = A - (μ ./ λ)
+    ∇Ψ_u = ∇ϕu + (λ' * T)' - 2 * μ * (ones(n0)' * (T ./ A))'
+
+    return [∇Ψ_λ; ∇Ψ_u]
+end
+
+
+function backtracking_ipls(Ψα, Ψ0, ∇Ψ0, α)
+    """Bactracking method to find optimal `step_size`."""
+    n_loops = 0
+    # Backtracking parameters
+    τ = 0.25
+    σ = 0.7
+
+    println(sum(∇Ψ0), "\n")
+    println(Ψα, "\n")
+    println(Ψ0, "\n")
+    println(Ψα - Ψ0, "\n")
+    println(σ * α * sum(∇Ψ0), "\n")
+    println("\n")
+    while (Ψα - Ψ0) > (σ * α * sum(∇Ψ0))
+        α = τ * α
+        n_loops += 1
+    end
+    return α, n_loops
+end
+
+
 function interior_point_least_square(X, S, max_iter = 100, min_precision = 1e-8)
     """"
     Image-based unmixing method with interior point least square method.
@@ -110,9 +150,17 @@ function interior_point_least_square(X, S, max_iter = 100, min_precision = 1e-8)
 
         n_iter_2 = 0
         while (maximum(r_prim) > ϵ_prim) && (r_dual > ϵ_dual) && (n_iter_2 < max_iter)
+            Ψ0 = Ψ(get_function(X, S, A0 + Z * U), A, λ, μ)
+            ∇Ψ0 = ∇Ψ(∇ϕ, T, A, λ, μ)
+
             # Update search directions and parameters
             u, U, A, inv_A_diag, ∇ϕ, λ, Λ, δ =
                 update_directions(u, Z, X, S, a0, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, α, λ, Λ, Mu, n, p)
+
+            Ψα = Ψ(get_function(X, S, A0 + Z * U), A, λ, μ)
+            # Update stepsize
+            α, _ = backtracking_ipls(Ψα, Ψ0, ∇Ψ0, α)
+            println(n_iter_2, α)
             # Update primal Newton direction
             r_prim = ∇ϕ - T' * λ
 
