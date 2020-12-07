@@ -25,14 +25,50 @@ function get_sumtoone_null(p)
     return Z
 end
 
+function Ψ(ϕu, A, λ, μ)
+    s1 = sum(log.(A))
+    s2 = sum(log.(λ .* A))
 
-function update_directions(u, Z, X, S, a0, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, α, λ, Λ, Mu, n, p)
-    """Update search directions."""
-    # Update directions
-    d_u = inv(∇2ϕ + T' * inv_A_diag * Λ * T) * (-∇ϕ + T' * inv_A_diag * Mu)
-    d_λ = inv_A_diag * (Mu - Λ * (T * (u + d_u) + a0))
+    return ϕu - μ * (s1 + s2) + (λ' * A)
+end
 
-    # Update variables
+
+function ∇Ψ(∇ϕ, T, A, inv_A_diag, λ, Λ, μ)
+    pn = size(T)[1]
+
+    ∇Ψ_λ = A - (μ ./ λ)
+    ∇Ψ_u = ∇ϕ + (ones(1, pn) * (Λ - (2 * μ * inv_A_diag)) * T)'
+
+    return [∇Ψ_λ; ∇Ψ_u]
+end
+
+
+function backtracking_ipls(α, d_λ, d_u, u, U, T, a0, X, S, A0, A, inv_A_diag, Z, ∇ϕ, λ, Λ, μ)
+    """Bactracking method to find optimal `step_size`."""
+    n_loops = 0
+    # Backtracking parameters
+    τ = 0.8
+    σ = 0.5
+
+    d = [d_λ; d_u]
+    Ψ0 = Ψ(get_function(X, S, A0 + Z * U), A, λ, μ)
+    ∇Ψ0 = ∇Ψ(∇ϕ, T, A, inv_A_diag, λ, Λ, μ)
+
+    u1, U1, A1, inv_A_diag1, λ1, Λ1 = update_variables(α, d_λ, d_u, u, T, a0, X, S, A0, Z, λ)
+    Ψα = Ψ(get_function(X, S, A0 + Z * U1), A1, λ1, μ)
+    while Ψα > (Ψ0 + σ * α * (d'*∇Ψ0)[1])
+        # while Ψα > (Ψ0 + σ * α * sum(∇Ψ0))
+        α = τ * α
+        u1, U1, A1, inv_A_diag1, λ1, Λ1 = update_variables(α, d_λ, d_u, u, T, a0, X, S, A0, Z, λ)
+        Ψα = Ψ(get_function(X, S, A0 + Z * U1), A1, λ1, μ)
+        n_loops += 1
+    end
+    println(n_loops)
+    return α, n_loops
+end
+
+
+function update_variables(α, d_λ, d_u, u, T, a0, X, S, A0, Z, λ)
     u += α * d_u
     U = reshape(u, p - 1, n)
     A = T * u + a0
@@ -42,6 +78,32 @@ function update_directions(u, Z, X, S, a0, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, α,
     λ += α * d_λ
     Λ = Diagonal(λ)
 
+    return u, U, A, inv_A_diag, λ, Λ
+end
+
+function get_new_step(u, U, Z, X, S, a0, A0, ∇ϕ, ∇2ϕ, T, A, inv_A_diag, λ, Λ, μ, Mu)
+    """Update search directions. step size and variables."""
+    # Update directions
+    d_u = inv(∇2ϕ + T' * inv_A_diag * Λ * T) * (-∇ϕ + T' * inv_A_diag * Mu)
+    # d_λ = inv_A_diag * (Mu - Λ * (T * (u + d_u) + a0))
+    d_λ = inv_A_diag * (Mu - Λ * (T * u + a0) - Λ * T * d_u)
+    # println(d_λ == inv_A_diag * (Mu - Λ * (T * (u + d_u) + a0)))
+    # Find an initil step size
+    α_plus = 0.01
+    while α_plus < 1
+        if any(x -> x .<= 0, λ + (α_plus + 0.01) * d_λ) ||
+           any(x -> x .<= 0, A + (α_plus + 0.01) * T * d_u)
+            break
+        end
+        α_plus += 0.01
+    end
+    α = min(1, 0.99 * α_plus)
+    println("α1 ", α)
+    # Update step_size
+    α, _ = backtracking_ipls(α, d_λ, d_u, u, U, T, a0, X, S, A0, A, inv_A_diag, Z, ∇ϕ, λ, Λ, μ)
+    println("α2 ", α, "\n")
+    # Update variables
+    u, U, A, inv_A_diag, λ, Λ = update_variables(α, d_λ, d_u, u, T, a0, X, S, A0, Z, λ)
     δ = A' * λ
 
     return u, U, A, inv_A_diag, ∇ϕ, λ, Λ, δ
@@ -55,44 +117,6 @@ function update_pertubation(θ, δ, p, n)
     return μ, Mu
 end
 
-
-function Ψ(ϕu, A, λ, μ)
-    s1 = sum(log.(A))
-    s2 = sum(log.(λ .* A))
-
-    return ϕu - μ * (s1 + s2) + (λ' * A)
-end
-
-
-function ∇Ψ(∇ϕu, T, A, λ, μ)
-    n0 = size(T)[1]
-
-    ∇Ψ_λ = A - (μ ./ λ)
-    ∇Ψ_u = ∇ϕu + (λ' * T)' - 2 * μ * (ones(n0)' * (T ./ A))'
-
-    return [∇Ψ_λ; ∇Ψ_u]
-end
-
-
-function backtracking_ipls(Ψα, Ψ0, ∇Ψ0, α)
-    """Bactracking method to find optimal `step_size`."""
-    n_loops = 0
-    # Backtracking parameters
-    τ = 0.25
-    σ = 0.7
-
-    println(sum(∇Ψ0), "\n")
-    println(Ψα, "\n")
-    println(Ψ0, "\n")
-    println(Ψα - Ψ0, "\n")
-    println(σ * α * sum(∇Ψ0), "\n")
-    println("\n")
-    while (Ψα - Ψ0) > (σ * α * sum(∇Ψ0))
-        α = τ * α
-        n_loops += 1
-    end
-    return α, n_loops
-end
 
 
 function interior_point_least_square(X, S, max_iter = 100, min_precision = 1e-8)
@@ -123,6 +147,7 @@ function interior_point_least_square(X, S, max_iter = 100, min_precision = 1e-8)
     ∇2ϕ = get_hessian_vector(X, S, Z)
 
     λ = reshape(get_feasible_point_matrix(p, n), p * n)
+    # λ = 2 * ones(p * n) # ./ (p * n)
     Λ = Diagonal(λ)
 
     # Parameter initialization
@@ -139,8 +164,6 @@ function interior_point_least_square(X, S, max_iter = 100, min_precision = 1e-8)
     r_dual = δ / (p * n)
     η_dual = 1.9  # In [1, 1/θ]
     ϵ_dual = η_dual * μ
-    # Step size
-    α = 0.1
 
     n_iter_1 = 0
     # Initialize loss
@@ -150,27 +173,20 @@ function interior_point_least_square(X, S, max_iter = 100, min_precision = 1e-8)
 
         n_iter_2 = 0
         while (maximum(r_prim) > ϵ_prim) && (r_dual > ϵ_dual) && (n_iter_2 < max_iter)
-            Ψ0 = Ψ(get_function(X, S, A0 + Z * U), A, λ, μ)
-            ∇Ψ0 = ∇Ψ(∇ϕ, T, A, λ, μ)
-
-            # Update search directions and parameters
+            # Update search directions, step size and variables
             u, U, A, inv_A_diag, ∇ϕ, λ, Λ, δ =
-                update_directions(u, Z, X, S, a0, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, α, λ, Λ, Mu, n, p)
+                get_new_step(u, U, Z, X, S, a0, A0, ∇ϕ, ∇2ϕ, T, A, inv_A_diag, λ, Λ, μ, Mu)
 
-            Ψα = Ψ(get_function(X, S, A0 + Z * U), A, λ, μ)
-            # Update stepsize
-            α, _ = backtracking_ipls(Ψα, Ψ0, ∇Ψ0, α)
-            println(n_iter_2, α)
             # Update primal Newton direction
             r_prim = ∇ϕ - T' * λ
-
+            # r_dual = δ / (p * n)
             n_iter_2 += 1
         end
         # Update perturbation parameters
         μ, Mu = update_pertubation(θ, δ, p, n)
-        # Update search directions and parameters
+        # Update search directions, step size and variables
         u, U, A, inv_A_diag, ∇ϕ, λ, Λ, δ =
-            update_directions(u, Z, X, S, a0, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, α, λ, Λ, Mu, n, p)
+            get_new_step(u, U, Z, X, S, a0, A0, ∇ϕ, ∇2ϕ, T, A, inv_A_diag, λ, Λ, μ, Mu)
 
         # Update primal and dual Newton directions
         r_prim = ∇ϕ - T' * λ
