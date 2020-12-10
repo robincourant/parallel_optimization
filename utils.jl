@@ -73,3 +73,15 @@ function get_hessian_vector(X, S, Z)
     H = kron(Matrix(I, n, n), S * Z)
     return H' * H
 end
+
+
+function get_constrain_matrix(n, p)
+    A = zeros(0, p * n)
+    for i = 1:n
+        u = zeros(p * n)'
+        k = (i - 1) * p + 1
+        u[k:k+(p-1)] .= 1
+        A = [A; u]
+    end
+    return A
+end
