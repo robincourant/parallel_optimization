@@ -107,8 +107,6 @@ function backtracking_pdip(λ, Λ, d_λ, u, U, d_u, Z, X, S, a0, A, A0, ∇ϕ, �
     return α
 end
 
-
-
 function update_pertubation(θ, δ, p, n)
     """Update pertubation parameter."""
     μ = (θ * δ) / (p * n)
