@@ -1,4 +1,4 @@
-include("./utils.jl")
+include("../utils.jl")
 
 function vector_to_image(S, a, l, p, n)
     """Transform vector to matrix and image."""
@@ -65,7 +65,7 @@ function ∇Ψ(∇ϕ, T, A, inv_A_diag, λ, Λ, μ)
 end
 
 
-function backtracking_pdip(λ, Λ, d_λ, u, U, d_u, Z, X, S, a0, A, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, μ, Mu, θ)
+function backtracking_ipls(λ, Λ, d_λ, u, U, d_u, Z, X, S, a0, A, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, μ, Mu, θ)
     pn, = size(λ)
     p, n = size(A0)
 
@@ -79,7 +79,6 @@ function backtracking_pdip(λ, Λ, d_λ, u, U, d_u, Z, X, S, a0, A, A0, ∇ϕ, �
         end
         s_max += k_step
     end
-    println("s_max: ", s_max)
     α = 0.99 * s_max
     σ, τ = 0.01, 0.3
 
@@ -93,17 +92,13 @@ function backtracking_pdip(λ, Λ, d_λ, u, U, d_u, Z, X, S, a0, A, A0, ∇ϕ, �
     new_μ, _ = update_pertubation(θ, new_δ, p, n)
     new_Ψ = Ψ(get_function(X, S, A0 + Z * new_U), new_A, new_λ, new_μ)
 
-    # println("PSI: ", new_Ψ, " ", Ψ0 + (σ * α * d' * ∇Ψ0)[1])
     while new_Ψ > Ψ0 + (σ * α * d' * ∇Ψ0)[1]
         α *= τ
-        # println("α: ", α)
-        # println("PSI: ", new_Ψ, " ", Ψ0 + (σ * α * d' * ∇Ψ0)[1])
         _, new_U, new_A, _, _, new_λ, _, new_δ =
             update_directions(u, Z, X, S, a0, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, α, λ, Λ, Mu, n, p)
         new_μ, _ = update_pertubation(θ, new_δ, p, n)
         new_Ψ = Ψ(get_function(X, S, A0 + Z * new_U), new_A, new_λ, new_μ)
     end
-    println("alpha end: ", α, "\n")
     return α
 end
 
@@ -114,15 +109,13 @@ function update_pertubation(θ, δ, p, n)
     return μ, Mu
 end
 
-function interior_point_least_square(X, S, max_iter = 100, min_precision = 1e-8)
+function interior_point_least_square(X, S, max_iter, min_precision)
     """"
     Image-based unmixing method with interior point least square method.
     cf: https://hal.archives-ouvertes.fr/hal-00828013/document
     """
     p = size(S)[2]
-    n1, n2, _ = size(X)
-    n = n1 * n2
-    X = reshape(X, n1 * n2, l)'
+    l, n = size(X)
 
     # Variable to minimize with the reparametrization:
     # A = A0 - ZU
@@ -172,7 +165,7 @@ function interior_point_least_square(X, S, max_iter = 100, min_precision = 1e-8)
         n_iter_2 = 0
         while (maximum(r_prim) > ϵ_prim) && (r_dual > ϵ_dual) && (n_iter_2 < max_iter)
             # Line search
-            α = backtracking_pdip(
+            α = backtracking_ipls(
                 λ, Λ, d_λ, u, U, d_u, Z, X, S, a0, A, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, μ, Mu, θ
             )
             # Update search directions and parameters
@@ -187,7 +180,7 @@ function interior_point_least_square(X, S, max_iter = 100, min_precision = 1e-8)
         # Update perturbation parameters
         μ, Mu = update_pertubation(θ, δ, p, n)
         # Line search
-        α = backtracking_pdip(
+        α = backtracking_ipls(
             λ, Λ, d_λ, u, U, d_u, Z, X, S, a0, A, A0, ∇ϕ, ∇2ϕ, T, inv_A_diag, μ, Mu, θ
         )
         # Update search directions and parameters

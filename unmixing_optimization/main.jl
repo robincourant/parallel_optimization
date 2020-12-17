@@ -3,9 +3,10 @@ using Statistics
 using Distributed
 using DistributedArrays
 
-include("./gradient_projection.jl")
-include("./interior_point_least_square.jl")
-include("./log_barrier.jl")
+include("./unmixing_methods/gradient_projection.jl")
+include("./unmixing_methods/interior_point_least_square.jl")
+include("./unmixing_methods/log_barrier.jl")
+include("./unmixing_methods/primal_dual_interior_point.jl")
 include("./utils.jl")
 
 
@@ -24,6 +25,10 @@ function get_optimizer_from_string(optimizer_name)
         return projected_gradient_2c_vector
     elseif optimizer_name == "log_barrier"
         return log_barrier_vector
+    elseif optimizer_name == "ipls"
+        return interior_point_least_square
+    elseif optimizer_name == "primal_dual"
+        return primal_dual_interior_point
     end
 end
 
@@ -33,19 +38,28 @@ function get_estimator_from_string(estimator_name)
 
     :param estimator_name: which method to use:
         - `serial_pixel`: serial pixel-based approach;
+        - `parallel_pixel`: serial pixel-based approach;
         - `serial_image`: serial image-based approach;
     :return: a callable estimator.
     """
     if estimator_name == "serial_pixel"
         return estimate_abundance_pixel
+    elseif estimator_name == "parallel_pixel"
+        return estimate_abundance_parallel
     elseif estimator_name == "serial_image"
         return estimate_abundance_image
     end
-    # modified
-    if estimator_name == "parallel_estimator"
-        return parallel_estimate_abundance
-    end
 end
+
+
+function estimate_abundance(X, S, optimizer_name, estimator_name, max_iter = 20)
+    """Compute the runtime series depending on the number of pixel"""
+    estimator = get_estimator_from_string(estimator_name)
+    new_X, A, mean_loss = estimator(X, S, optimizer_name, max_iter)
+
+    return new_X, A, mean_loss
+end
+
 
 function estimate_abundance_pixel(X, S, optimizer_name, max_iter = 500, min_precision = 1e-8)
     """
@@ -64,6 +78,7 @@ function estimate_abundance_pixel(X, S, optimizer_name, max_iter = 500, min_prec
         pixel for each iteration.
     """
     optimizer = get_optimizer_from_string(optimizer_name)
+
     n1, n2, l = size(X)
     new_X = zeros(n1, n2, l)
     A = zeros(n1, n2, 4)
@@ -78,19 +93,12 @@ function estimate_abundance_pixel(X, S, optimizer_name, max_iter = 500, min_prec
         push!(loss, pixel_loss)
     end
     mean_loss = mean(loss, dims=1)[1]
-    # mean_loss = [mean(loss[k][loss[k].>0]) for k = 1:size(loss)[1]]
 
     return new_X, A, mean_loss
 end
 
 
-function estimate_abundance_image(
-    X,
-    S,
-    optimizer_name = "ipls",
-    max_iter = 500,
-    min_precision = 1e-8,
-)
+function estimate_abundance_image(X, S, optimizer_name, max_iter = 50, min_precision = 1e-8)
     """
     Estimate the abundance matrix for each pixel of the image X, with a
     image-based approach.
@@ -103,32 +111,21 @@ function estimate_abundance_image(
     """
     l, p = size(S)
     n1, n2, _ = size(X)
+    flat_image = reshape(X, n1 * n2, l)'
+    optimizer = get_optimizer_from_string(optimizer_name)
 
-    a, loss = interior_point_least_square(X, S, max_iter, min_precision)
+    a, loss = optimizer(flat_image, S, max_iter, min_precision)
     new_X, A = vector_to_image(S, a, l, p, n1 * n2)
 
     return new_X, A, loss
 end
 
-function get_runtime_series(X, S, optimizer_name, estimator_name, n_points = 20)
-    """Compute the runtime series depending on the number of pixel"""
-    estimator = get_estimator_from_string(estimator_name)
 
-    n1, n2, _ = size(X)
-    n_pixels = [floor(Int, k) for k in LinRange(1, n1, n_points)]
-    runtime_series = []
-    for k_pixel in n_pixels
-        Y = X[1:k_pixel, 1:k_pixel, :]
-        profiler = @timed estimator(Y, S, optimizer_name)
-        append!(runtime_series, profiler.time)
-    end
-    return n_pixels, runtime_series
-end
+function estimate_abundance_parallel(X, S, optimizer_name, max_iter=500, min_precision=1e-8)
+    """
+    Estimate the new matrix X by computing in parallel on all available processors.
 
-
-function parallel_estimate_abundance(X, S, optimizer_name, max_iter=500, min_precision=1e-8)
-    """Estimate the new matrix X by computing in parallel on all available processors
-    :param X: image matrix of shape (n_pixels, 255).
+    :param X: image matrix of shape (n_pixels_1, n_pixels_2, 255).
     :param S: source matrix of shape (255, 4).
     :param optimizer_name: which method to use:
         - `projected_gradient_1c`: projected-gradient_1c with 1 constraints;
@@ -142,7 +139,12 @@ function parallel_estimate_abundance(X, S, optimizer_name, max_iter=500, min_pre
     X_parallel = [X[:,i,:] for i = 1:n_column]
 
     # Need to use pmap for each parameter to return -> not optimal as it makes code run several times
-    new_X_divided = pmap(x -> estimate_abundance(reshape(x, n_column, 1, 255), S, optimizer_name, max_iter, min_precision)[1], X_parallel)
+    new_X_divided = pmap(
+        x -> estimate_abundance_pixel(
+            reshape(x, n_column, 1, 255), S, optimizer_name, max_iter
+        )[1],
+        X_parallel
+    )
 
     # For the parallel part, we can only look at the new_X matrix
     """
@@ -156,5 +158,22 @@ function parallel_estimate_abundance(X, S, optimizer_name, max_iter=500, min_pre
     for i = 1:n_column
         new_X[:,i,:] = new_X_divided[i]
     end
-    return new_X
+    return new_X, 0, 0
+end
+
+
+function get_runtime_series(X, S, optimizer_name, estimator_name, n_points = 20)
+    """Compute the runtime series depending on the number of pixel"""
+    estimator = get_estimator_from_string(estimator_name)
+    n1, n2, _ = size(X)
+    n_pixels = [floor(Int, k) for k in LinRange(1, n1, n_points)]
+
+    runtime_series = []
+    for k_pixel in n_pixels
+        Y = X[1:k_pixel, 1:k_pixel, :]
+        profiler = @timed estimator(Y, S, optimizer_name)
+        append!(runtime_series, profiler.time)
+    end
+
+    return n_pixels, runtime_series
 end

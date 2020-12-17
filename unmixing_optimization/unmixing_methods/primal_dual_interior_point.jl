@@ -1,4 +1,4 @@
-include("./utils.jl")
+include("../utils.jl")
 
 function update_values(x, λ, ν, Δy, stepsize, b, A, μ, H, flat_image, S)
     p = size(S)[2]
@@ -73,7 +73,7 @@ function backtracking_pdip(x, λ, ν, r, Δy, b, A, μ, H, flat_image, S)
     return stepsize
 end
 
-function primal_dual_interior_point(flat_image, S, max_iter)
+function primal_dual_interior_point(flat_image, S, max_iter, min_precision)
     p = size(S)[2]
     l, n = size(flat_image)
     pn = p * n

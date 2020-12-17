@@ -1,6 +1,6 @@
 using LinearAlgebra
 
-include("./utils.jl")
+include("../utils.jl")
 
 
 function ϕ(a)
