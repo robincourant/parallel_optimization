@@ -52,16 +52,16 @@ function get_estimator_from_string(estimator_name)
 end
 
 
-function estimate_abundance(X, S, optimizer_name, estimator_name, max_iter=20)
+function estimate_abundance(X, S, optimizer_name, estimator_name)
     """Compute the runtime series depending on the number of pixel"""
     estimator = get_estimator_from_string(estimator_name)
-    new_X, A, mean_loss = estimator(X, S, optimizer_name, max_iter)
+    new_X, A, mean_loss = estimator(X, S, optimizer_name)
 
     return new_X, A, mean_loss
 end
 
 
-function estimate_abundance_pixel(X, S, optimizer_name, max_iter=500, min_precision=1e-8)
+function estimate_abundance_pixel(X, S, optimizer_name, max_iter=200, min_precision=1e-8)
     """
     Estimate the abundance matrix for each pixel of the image X, by estimating
     the abundance vector of each pixel.
@@ -98,7 +98,7 @@ function estimate_abundance_pixel(X, S, optimizer_name, max_iter=500, min_precis
 end
 
 
-function estimate_abundance_image(X, S, optimizer_name, max_iter=50, min_precision=1e-8)
+function estimate_abundance_image(X, S, optimizer_name, max_iter=20, min_precision=1e-8)
     """
     Estimate the abundance matrix for each pixel of the image X, with a
     image-based approach.
@@ -121,7 +121,7 @@ function estimate_abundance_image(X, S, optimizer_name, max_iter=50, min_precisi
 end
 
 
-function estimate_abundance_parallel(X, S, optimizer_name, max_iter=500, min_precision=1e-8)
+function estimate_abundance_parallel(X, S, optimizer_name, max_iter=200, min_precision=1e-8)
     """
     Estimate the new matrix X by computing in parallel on all available processors.
 
@@ -149,10 +149,10 @@ function estimate_abundance_parallel(X, S, optimizer_name, max_iter=500, min_pre
     """
     For the parallel part, we choose to look only at the new_X matrix
     We could get other outputs just as in the serial implementation but for that
-    we would have to uncomment the following lines and it would make the function run several 
+    we would have to uncomment the following lines and it would make the function run several
     times
     """
-    
+
     """
     @time  new_A_divided = pmap(x -> estimate_abundance(reshape(x, n_column, 1, 255), S, optimizer_name, max_iter, min_precision)[2], X_parallel)
     @time mean_loss_divided = pmap(x -> estimate_abundance(reshape(x, n_column, 1, 255), S, optimizer_name, max_iter, min_precision)[3], X_parallel)
