@@ -17,7 +17,7 @@ end
 function projected_gradient_1c_vector(x, S, max_iter = 500, min_precision = 1e-8)
     """
     Projected gradient method to minimize `||x - Sa||` where `x` and `a` are vectors.
-    It works with the constraint of equality: TODO add the inequality constraint.
+    It works with the constraint of equality.
 
     :param x: pixel vector of shape (1, 255).
     :param S: source matrix of shape (255, 4).

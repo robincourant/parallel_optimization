@@ -52,7 +52,7 @@ function backtracking_pdip(x, λ, ν, r, Δy, b, A, μ, H, flat_image, S)
     new_λ = λ + s_max * Δy[pn+1:2*pn]
 
     stepsize = 0.99 * s_max
-    α, β = 0.1, 0.3
+    α, β = 0.01, 0.5
     new_x, _, _, new_r_cent, new_r_dual, new_r_prim, _ =
         update_values(x, λ, ν, Δy, stepsize, b, A, μ, H, flat_image, S)
     new_r = [new_r_cent; new_r_dual; new_r_prim]
